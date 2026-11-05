@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recruiter Scheduling Agent</title>
+  <style>
+    :root {
+      --background: #f6f7f9;
+      --surface: #ffffff;
+      --text: #1c2128;
+      --muted: #5c6675;
+      --border: #dde1e7;
+      --accent: #2456c8;
+      --on-accent: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: #14171c;
+        --surface: #1e2329;
+        --text: #e8ebef;
+        --muted: #9aa4b2;
+        --border: #333a44;
+        --accent: #7ea2f5;
+        --on-accent: #10141a;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font: 16px/1.5 system-ui, sans-serif;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 { margin: 0; font-size: 1.25rem; }
+    header p { margin: 4px 0 16px; color: var(--muted); }
+
+    #messages {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+      padding-bottom: 16px;
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      white-space: pre-wrap;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--on-accent);
+    }
+
+    form { display: flex; gap: 8px; }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font: inherit;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: var(--on-accent);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: 0.6; cursor: default; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Book a call with the recruiter</h1>
+      <p>Ask about the process, or tell me when you're free.</p>
+    </header>
+    <section id="messages" aria-live="polite"></section>
+    <form id="chat-form">
+      <input id="message" maxlength="500" autocomplete="off" required
+             aria-label="Your message" placeholder="Type a message">
+      <button id="send">Send</button>
+    </form>
+  </main>
+
+  <script>
+    const messages = document.getElementById("messages");
+    const form = document.getElementById("chat-form");
+    const input = document.getElementById("message");
+    const send = document.getElementById("send");
+    let sessionId;
+
+    function addMessage(text, role) {
+      const bubble = document.createElement("div");
+      bubble.className = `message ${role}`;
+      bubble.textContent = text;
+      messages.append(bubble);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function requestReply(message) {
+      const response = await fetch("/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail);
+      return body;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+
+      addMessage(message, "user");
+      input.value = "";
+      send.disabled = true;
+
+      try {
+        const { session_id, reply } = await requestReply(message);
+        sessionId = session_id;
+        addMessage(reply, "agent");
+      } catch {
+        addMessage("Something went wrong. Please try again.", "agent");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+
+    addMessage("Hi! I can answer questions and book your call with the recruiter.", "agent");
+  </script>
+</body>
+</html>
